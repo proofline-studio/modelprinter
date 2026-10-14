@@ -65,8 +65,10 @@ These flags are mutually exclusive. Direct props use `backFaceHoles`,
 one true flag and false for the other rear-face flags.
 
 Rear fasteners are representative configurable details, not guaranteed by a NEMA
-frame number. The square rear pitches default to 16 / 31 / 47.14 / 40 mm,
-independently overridden by `backFaceHoleSpacing` / `_backholespacing`.
+frame number. Rear patterns default to 16 × 16 / 31 × 31 / 50 × 32 / 40 × 40 mm.
+`backFaceHoleSpacing` / `_backholespacing` still sets both axes to a square
+pattern when supplied. `backFaceHoleSpacingX` / `_backholespacingx` and
+`backFaceHoleSpacingY` / `_backholespacingy` independently override each axis.
 NEMA34 follows the rounded, stepped shoulders and plain rear casting visible in
 STEPPERONLINE product photos. The rear follows the body profile instead of
 repeating the mounting flange. Front assembly screws sit in edge recesses
@@ -80,13 +82,20 @@ configure the profiles. In stepped mode, the chamfer value divided by sqrt(2)
 sets the corner shoulder depth, with fillets up to 4 mm. Default body and rear
 values are both 24 mm. Rear bores/screws remain opt-in with an illustrative
 40 mm square pitch and can be overridden to match a specific motor.
-NEMA8/17/23 retain their existing rear profiles. Front flange holes are unchanged.
+NEMA8/17 retain their existing profiles. NEMA23 uses matching curved body/rear
+profiles with 9 mm shoulders, R5 recesses and R2.5 fillets; front holes are unchanged.
+
+`rearStepped` / `_rearstepped` and `rearChamfered` / `_rearchamfered` override the
+rear profile independently of `stepped` / `chamfered`. Body and rear arc radii
+use `bodyCornerRecessRadius`, `bodyCornerFilletRadius`, `rearCornerRecessRadius`
+and `rearCornerFilletRadius` (`bodyrecess`, `bodyfillet`, `rearrecess`, `rearfillet`).
+`nema23_chamfered_backholespacing47.14mm_backscrewm4` retains the previous depiction.
 
 | Rear default (mm) | NEMA8 | NEMA17 | NEMA23 | NEMA34 |
 | --- | --- | --- | --- | --- |
-| Screw size | M2 | M3 | M4 | M5 |
-| Bore diameter / depth | 2 / 2 | 3 / 4.5 | 4 / 4.5 | 5 / 6 |
-| Head diameter / height | 3.8 / 2 | 5.5 / 3 | 7 / 4 | 8.5 / 5 |
+| Screw size | M2 | M3 | M3 | M5 |
+| Bore diameter / depth | 2 / 2 | 3 / 4.5 | 3 / 4.5 | 5 / 6 |
+| Head diameter / height | 3.8 / 2 | 5.5 / 3 | 5.5 / 3 | 8.5 / 5 |
 
 `backFaceScrewSize` / `_backscrewm3` selects the existing ISO 4762 bolt
 head/socket dimensions. `backFaceHoleDiameter` / `_backholediameter` and
@@ -98,7 +107,7 @@ screws larger than the bore, and holes or heads that cross the rear-face edge.
 
 ```ts
 mp.string("nema17_backfaceholes").json()
-mp.string("nema23_backfacescrews_backholespacing40mm_backscrewm3").json()
+mp.string("nema23_backfacescrews_backholespacingx48mm_backholespacingy30mm").json()
 ```
 
 ## Wire connection aliases

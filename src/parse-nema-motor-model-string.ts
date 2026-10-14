@@ -10,6 +10,8 @@ const lengths = {
   bodylength: "bodyLength",
   bodywidth: "bodyWidth",
   backholespacing: "backFaceHoleSpacing",
+  backholespacingx: "backFaceHoleSpacingX",
+  backholespacingy: "backFaceHoleSpacingY",
   backholediameter: "backFaceHoleDiameter",
   backholedepth: "backFaceHoleDepth",
   shaftlength: "shaftLength",
@@ -25,7 +27,11 @@ const lengths = {
   rearcap: "rearCapLength",
   facechamfer: "faceCornerChamfer",
   bodychamfer: "bodyCornerChamfer",
+  bodyrecess: "bodyCornerRecessRadius",
+  bodyfillet: "bodyCornerFilletRadius",
   rearchamfer: "rearCornerChamfer",
+  rearrecess: "rearCornerRecessRadius",
+  rearfillet: "rearCornerFilletRadius",
 } as const
 
 const flags = {
@@ -38,6 +44,8 @@ const flags = {
   dshaft: "dShaft",
   chamfered: "chamfered",
   stepped: "stepped",
+  rearstepped: "rearStepped",
+  rearchamfered: "rearChamfered",
   nowires: "noWires",
   wirestubs: "wireStubs",
 } as const

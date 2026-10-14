@@ -3,6 +3,7 @@ import {
   jstMotorWireConnectionSchema,
 } from "./jst-motor-connector"
 import { z } from "zod"
+import { fitsNemaCircle, clearsNemaCircle } from "./nema-motor-profile"
 import {
   hexSocketBoltDimensions,
   metricBoltSizeSchema,
@@ -79,7 +80,15 @@ export const nemaMotorDimensions = {
     bodyCornerChamfer: 6,
   },
   23: {
-    backFaceScrewSize: "M4",
+    // Representative side-tab rear pattern from STEPPERONLINE's ST-M10 adapter.
+    // The adapter's R5/R2.5 profile is a visual reference, not a frame guarantee:
+    // https://www.omc-stepperonline.com/image/catalog/dimensions/ST-M10_Dimension.svg
+    backFaceHoleSpacing: 50,
+    backFaceHoleSpacingY: 32,
+    rearCornerChamfer: 9 * Math.SQRT2,
+    rearCornerRecessRadius: 5,
+    rearCornerFilletRadius: 2.5,
+    backFaceScrewSize: "M3",
     backFaceHoleDepth: 4.5,
     bodyWidth: 56.4,
     bodyLength: 51,
@@ -99,7 +108,10 @@ export const nemaMotorDimensions = {
     frontCapLength: 5,
     rearCapLength: 5,
     faceCornerChamfer: 2,
-    bodyCornerChamfer: 15,
+    bodyCornerChamfer: 9 * Math.SQRT2,
+    bodyCornerRecessRadius: 5,
+    bodyCornerFilletRadius: 2.5,
+    chamferedBodyCornerChamfer: 15,
   },
   34: {
     // Illustrative rear details; independent of the mounting flange.
@@ -136,6 +148,9 @@ const shape = {
   backFaceHoles: z.boolean().optional(),
   backFaceScrews: z.boolean().optional(),
   backFaceHoleSpacing: positive.optional(),
+  /** Axis overrides; the legacy scalar still sets a square pattern when supplied. */
+  backFaceHoleSpacingX: positive.optional(),
+  backFaceHoleSpacingY: positive.optional(),
   backFaceHoleDiameter: positive.optional(),
   backFaceHoleDepth: positive.optional(),
   backFaceScrewSize: metricBoltSizeSchema.optional(),
@@ -172,8 +187,14 @@ const shape = {
   rearCapLength: positive.optional(),
   faceCornerChamfer: nonnegative.optional(),
   bodyCornerChamfer: nonnegative.optional(),
+  bodyCornerRecessRadius: nonnegative.optional(),
+  bodyCornerFilletRadius: nonnegative.optional(),
   /** Rear outline is independent of the front mounting flange. */
   rearCornerChamfer: nonnegative.optional(),
+  rearCornerRecessRadius: nonnegative.optional(),
+  rearCornerFilletRadius: nonnegative.optional(),
+  rearChamfered: z.boolean().optional(),
+  rearStepped: z.boolean().optional(),
   chamfered: z.boolean().optional(),
   stepped: z.boolean().optional(),
 }
@@ -204,7 +225,15 @@ const resolve = (
   )
   const corner = select(
     ["chamfered", "stepped"],
-    p.nemaSize === 34 ? "stepped" : "chamfered",
+    p.nemaSize === 23 || p.nemaSize === 34 ? "stepped" : "chamfered",
+  )
+  const rearCorner = select(
+    ["rearChamfered", "rearStepped"],
+    p.chamfered === true
+      ? "rearChamfered"
+      : p.nemaSize === 23 || corner === "stepped"
+        ? "rearStepped"
+        : "rearChamfered",
   )
   const wireSpecified =
     p.noWires !== undefined ||
@@ -221,8 +250,30 @@ const resolve = (
         "Select exactly one of noWires, wireStubs or a JST wireConnection",
     })
   const d = nemaMotorDimensions[p.nemaSize]
+  const bodyCornerChamfer =
+    p.bodyCornerChamfer ??
+    (corner === "chamfered" && "chamferedBodyCornerChamfer" in d
+      ? d.chamferedBodyCornerChamfer
+      : d.bodyCornerChamfer)
+  const defaultBodyRadius = Math.min(4, bodyCornerChamfer / Math.SQRT2 / 4)
   const backFaceScrewSize = p.backFaceScrewSize ?? d.backFaceScrewSize
   const screw = hexSocketBoltDimensions[backFaceScrewSize]
+  const backFaceHoleSpacing =
+    p.backFaceHoleSpacing ??
+    ("backFaceHoleSpacing" in d
+      ? d.backFaceHoleSpacing
+      : (p.mountingHoleSpacing ?? d.mountingHoleSpacing))
+  const rearCornerChamfer =
+    p.rearCornerChamfer ??
+    (p.nemaSize === 23 && rearCorner === "rearChamfered"
+      ? (p.faceCornerChamfer ?? d.faceCornerChamfer)
+      : "rearCornerChamfer" in d
+        ? d.rearCornerChamfer
+        : back === "backFacePlain" &&
+            (p.mountingHoleThrough ?? d.mountingHoleThrough)
+          ? (p.bodyCornerChamfer ?? d.bodyCornerChamfer)
+          : (p.faceCornerChamfer ?? d.faceCornerChamfer))
+  const defaultRearRadius = Math.min(4, rearCornerChamfer / Math.SQRT2 / 4)
   return {
     nemaSize: p.nemaSize,
     noWires: p.noWires === true,
@@ -238,11 +289,14 @@ const resolve = (
     backFacePlain: back === "backFacePlain",
     backFaceHoles: back === "backFaceHoles",
     backFaceScrews: back === "backFaceScrews",
-    backFaceHoleSpacing:
+    backFaceHoleSpacing,
+    backFaceHoleSpacingX: p.backFaceHoleSpacingX ?? backFaceHoleSpacing,
+    backFaceHoleSpacingY:
+      p.backFaceHoleSpacingY ??
       p.backFaceHoleSpacing ??
-      ("backFaceHoleSpacing" in d
-        ? d.backFaceHoleSpacing
-        : (p.mountingHoleSpacing ?? d.mountingHoleSpacing)),
+      ("backFaceHoleSpacingY" in d
+        ? d.backFaceHoleSpacingY
+        : backFaceHoleSpacing),
     backFaceHoleDiameter: p.backFaceHoleDiameter ?? screw.diameter,
     backFaceHoleDepth: p.backFaceHoleDepth ?? d.backFaceHoleDepth,
     backFaceScrewSize,
@@ -264,43 +318,78 @@ const resolve = (
     frontCapLength: p.frontCapLength ?? d.frontCapLength,
     rearCapLength: p.rearCapLength ?? d.rearCapLength,
     faceCornerChamfer: p.faceCornerChamfer ?? d.faceCornerChamfer,
-    bodyCornerChamfer: p.bodyCornerChamfer ?? d.bodyCornerChamfer,
+    bodyCornerChamfer,
+    bodyCornerRecessRadius:
+      p.bodyCornerRecessRadius ??
+      ("bodyCornerRecessRadius" in d
+        ? d.bodyCornerRecessRadius
+        : defaultBodyRadius),
+    bodyCornerFilletRadius:
+      p.bodyCornerFilletRadius ??
+      ("bodyCornerFilletRadius" in d
+        ? d.bodyCornerFilletRadius
+        : defaultBodyRadius),
     chamfered: corner === "chamfered",
     stepped: corner === "stepped",
-    ...("rearCornerChamfer" in d || p.rearCornerChamfer !== undefined
-      ? {
-          rearCornerChamfer:
-            p.rearCornerChamfer ??
-            ("rearCornerChamfer" in d
-              ? d.rearCornerChamfer
-              : (p.faceCornerChamfer ?? d.faceCornerChamfer)),
-        }
-      : {}),
+    rearCornerChamfer,
+    rearStepped: rearCorner === "rearStepped",
+    rearChamfered: rearCorner === "rearChamfered",
+    rearCornerRecessRadius:
+      p.rearCornerRecessRadius ??
+      ("rearCornerRecessRadius" in d
+        ? d.rearCornerRecessRadius
+        : defaultRearRadius),
+    rearCornerFilletRadius:
+      p.rearCornerFilletRadius ??
+      ("rearCornerFilletRadius" in d
+        ? d.rearCornerFilletRadius
+        : defaultRearRadius),
   }
 }
 export type NemaMotorModelProps = ReturnType<typeof resolve>
 const validate = (p: NemaMotorModelProps, ctx: z.RefinementCtx) => {
   const issue = (message: string) => ctx.addIssue({ code: "custom", message })
+  if (
+    p.stepped &&
+    p.bodyCornerRecessRadius + p.bodyCornerFilletRadius >
+      p.bodyCornerChamfer / Math.SQRT2
+  )
+    issue("Body recess and fillet radii must fit within the corner shoulder")
   const rearChamfer =
     p.rearCornerChamfer ??
     (p.backFacePlain && p.mountingHoleThrough
       ? p.bodyCornerChamfer
       : p.faceCornerChamfer)
-  const rearEdge = p.stepped ? rearChamfer / Math.SQRT2 : rearChamfer
+  const rearEdge = p.rearStepped ? rearChamfer / Math.SQRT2 : rearChamfer
+  if (
+    p.rearStepped &&
+    p.rearCornerRecessRadius + p.rearCornerFilletRadius > rearEdge
+  )
+    issue("Rear recess and fillet radii must fit within the corner shoulder")
   if (!p.backFacePlain) {
     const screw = hexSocketBoltDimensions[p.backFaceScrewSize]
     const radius =
       (p.backFaceScrews
         ? Math.max(p.backFaceHoleDiameter, screw.headDiameter)
         : p.backFaceHoleDiameter) / 2
-    if (p.backFaceHoleSpacing <= 2 * radius)
+    if (
+      p.backFaceHoleSpacingX <= 2 * radius ||
+      p.backFaceHoleSpacingY <= 2 * radius
+    )
       issue("Rear holes and screw heads must not overlap each other")
     if (
-      p.backFaceHoleSpacing + 2 * radius >= p.bodyWidth ||
-      (p.stepped
-        ? p.backFaceHoleSpacing + 2 * radius >= p.bodyWidth - 2 * rearEdge
-        : p.bodyWidth - rearChamfer - p.backFaceHoleSpacing <=
-          radius * Math.SQRT2)
+      !fitsNemaCircle(
+        p.backFaceHoleSpacingX / 2,
+        p.backFaceHoleSpacingY / 2,
+        radius,
+        {
+          width: p.bodyWidth,
+          chamfer: p.rearCornerChamfer,
+          stepped: p.rearStepped,
+          recessRadius: p.rearCornerRecessRadius,
+          filletRadius: p.rearCornerFilletRadius,
+        },
+      )
     )
       issue("Rear holes and screw heads must fit entirely inside the rear face")
     if (p.backFaceHoleDepth >= p.rearCapLength)
@@ -344,13 +433,13 @@ const validate = (p: NemaMotorModelProps, ctx: z.RefinementCtx) => {
     issue("Blind mounting hole depth must be less than the front cap length")
   if (
     p.mountingHoleThrough &&
-    (p.stepped
-      ? p.bodyWidth / 2 -
-          p.bodyCornerChamfer / Math.SQRT2 +
-          Math.min(4, p.bodyCornerChamfer / Math.SQRT2 / 4) >=
-        p.mountingHoleSpacing / 2 - r
-      : p.bodyWidth - p.bodyCornerChamfer - p.mountingHoleSpacing >=
-        -r * Math.SQRT2)
+    !clearsNemaCircle(p.mountingHoleSpacing / 2, p.mountingHoleSpacing / 2, r, {
+      width: p.bodyWidth,
+      chamfer: p.bodyCornerChamfer,
+      stepped: p.stepped,
+      recessRadius: p.bodyCornerRecessRadius,
+      filletRadius: p.bodyCornerFilletRadius,
+    })
   )
     issue("Body must clear through front mounting holes")
   if (p.shaftLength <= p.pilotLength)

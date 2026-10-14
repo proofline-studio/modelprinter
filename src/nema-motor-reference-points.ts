@@ -2,6 +2,7 @@ import {
   nemaMotorModelPropsSchema,
   type NemaMotorModelPropsInput,
 } from "./nema-motor-schema"
+import { isInsideNemaFace } from "./nema-motor-profile"
 
 export interface NemaMotorReferencePoint {
   position: { x: number; y: number; z: number }
@@ -22,32 +23,28 @@ export function getNemaMotorReferencePoints(input: NemaMotorModelPropsInput) {
     p.bodyWidth / 2 / Math.max(Math.abs(x), Math.abs(y)),
     (p.bodyWidth - p.faceCornerChamfer) / (Math.abs(x) + Math.abs(y)),
   )
-  if (p.nemaSize === 34 && p.stepped) {
-    const h = p.bodyWidth / 2,
-      c = p.bodyCornerChamfer / Math.SQRT2,
-      r = Math.min(4, c / 4)
-    const contains = (distance: number) => {
-      const a = Math.abs(distance * x),
-        b = Math.abs(distance * y)
-      if (a > h || b > h) return false
-      if (c === 0) return true
-      if (a > h - c && b > h - c)
-        return (
-          a <= h - c + r &&
-          b <= h - c + r &&
-          Math.hypot(a - (h - c + r), b - (h - c + r)) >= r
-        )
-      if (b > h - r && a > h - c - r)
-        return Math.hypot(a - (h - c - r), b - (h - r)) <= r
-      if (a > h - r && b > h - c - r)
-        return Math.hypot(a - (h - r), b - (h - c - r)) <= r
-      return true
-    }
+  if (p.nemaSize !== 34 || p.stepped) {
+    const profile =
+      p.nemaSize === 34
+        ? {
+            width: p.bodyWidth,
+            chamfer: p.bodyCornerChamfer,
+            stepped: p.stepped,
+            recessRadius: p.bodyCornerRecessRadius,
+            filletRadius: p.bodyCornerFilletRadius,
+          }
+        : {
+            width: p.bodyWidth,
+            chamfer: p.rearCornerChamfer,
+            stepped: p.rearStepped,
+            recessRadius: p.rearCornerRecessRadius,
+            filletRadius: p.rearCornerFilletRadius,
+          }
     let low = 0,
       high = p.bodyWidth
     for (let i = 0; i < 50; i++) {
       const mid = (low + high) / 2
-      if (contains(mid)) low = mid
+      if (isInsideNemaFace(mid * x, mid * y, profile)) low = mid
       else high = mid
     }
     radius = low

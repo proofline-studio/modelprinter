@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { mp, nemaMotorModelPropsSchema } from "../src"
 
-test("NEMA geometry choices resolve to exclusive booleans with unchanged frame defaults", () => {
+test("NEMA geometry choices resolve to exclusive booleans for each frame", () => {
   for (const size of [8, 17, 23, 34] as const) {
     const definition = mp.string(`nema${size}`).json()
     if (definition.fn !== "nema") throw new Error("Expected NEMA")
@@ -10,8 +10,8 @@ test("NEMA geometry choices resolve to exclusive booleans with unchanged frame d
     expect(nemaMotorModelPropsSchema.parse({ nemaSize: size })).toEqual(props)
     expect(props.roundShaft).toBe(size === 8 || size === 34)
     expect(props.dShaft).toBe(size === 17 || size === 23)
-    expect(props.chamfered).toBe(size !== 34)
-    expect(props.stepped).toBe(size === 34)
+    expect(props.chamfered).toBe(size !== 23 && size !== 34)
+    expect(props.stepped).toBe(size === 23 || size === 34)
     expect(props.backFacePlain).toBe(size === 34)
     expect(props.backFaceHoles).toBe(false)
     expect(props.backFaceScrews).toBe(size !== 34)

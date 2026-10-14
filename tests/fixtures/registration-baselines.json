@@ -85,7 +85,16 @@
       "roundShaft": true,
       "dShaft": false,
       "chamfered": true,
-      "stepped": false
+      "stepped": false,
+      "backFaceHoleSpacingX": 31,
+      "backFaceHoleSpacingY": 31,
+      "rearCornerChamfer": 3,
+      "rearChamfered": true,
+      "rearStepped": false,
+      "rearCornerRecessRadius": 0.5303300858899106,
+      "rearCornerFilletRadius": 0.5303300858899106,
+      "bodyCornerRecessRadius": 1.0606601717798212,
+      "bodyCornerFilletRadius": 1.0606601717798212
     }
   },
   {
